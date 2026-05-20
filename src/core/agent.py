@@ -15,10 +15,10 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 
 from core.prompts import WARDROBE_CONSULTANT_SYSTEM_PROMPT
-from tools.date_ops import calculate_future_date, get_current_date
+from tools.date_ops import calculate_future_date, get_current_date, resolve_travel_date
 from tools.weather_api import get_weather_forecast
 
-_TOOLS = [get_current_date, calculate_future_date, get_weather_forecast]
+_TOOLS = [get_current_date, resolve_travel_date, calculate_future_date, get_weather_forecast]
 
 
 def create_wardrobe_agent(

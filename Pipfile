@@ -15,6 +15,7 @@ faiss-cpu = "*"
 ipdb = "*"
 langgraph = "*"
 tenacity = "*"
+dateparser = "*"
 
 [dev-packages]
 pytest = "*"

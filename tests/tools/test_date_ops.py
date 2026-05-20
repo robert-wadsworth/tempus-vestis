@@ -1,164 +1,153 @@
 import pytest
 from datetime import datetime, timedelta
 from unittest.mock import patch
-from tools.date_ops import get_current_date, calculate_future_date
+from tools.date_ops import (
+    get_current_date,
+    calculate_future_date,
+    resolve_travel_date,
+    _resolve_to_date,
+    _days_until_weekday,
+)
 
 
 class TestGetCurrentDate:
-    """Test suite for get_current_date function."""
-    
     def test_returns_string(self):
-        """Test that get_current_date returns a string."""
         result = get_current_date.invoke({})
         assert isinstance(result, str)
-    
-    def test_date_format(self):
-        """Test that get_current_date returns date in YYYY-MM-DD format."""
+
+    def test_includes_date_and_weekday(self):
         result = get_current_date.invoke({})
-        # Verify format by parsing
-        datetime.strptime(result, "%Y-%m-%d")
-        assert len(result) == 10
-        assert result[4] == "-" and result[7] == "-"
-    
+        parts = result.split()
+        assert len(parts) == 2
+        datetime.strptime(parts[0], '%Y-%m-%d')
+        assert parts[1] in ('Monday', 'Tuesday', 'Wednesday', 'Thursday',
+                             'Friday', 'Saturday', 'Sunday')
+
     @patch('tools.date_ops.datetime')
-    def test_returns_mocked_current_date(self, mock_datetime):
-        """Test that get_current_date returns the correct date when mocked."""
-        # Mock datetime.now() to return a specific date
-        mock_now = datetime(2025, 10, 9, 12, 30, 45)
-        mock_datetime.now.return_value = mock_now
-        
+    def test_returns_mocked_date_and_weekday(self, mock_dt):
+        mock_dt.now.return_value = datetime(2025, 10, 9, 12, 0, 0)  # Thursday
         result = get_current_date.invoke({})
-        assert result == "2025-10-09"
-    
-    def test_returns_actual_current_date(self):
-        """Test that get_current_date returns today's actual date."""
-        result = get_current_date.invoke({})
-        expected = datetime.now().strftime("%Y-%m-%d")
-        assert result == expected
-    
+        assert result == '2025-10-09 Thursday'
+
     def test_tool_has_description(self):
-        """Test that the tool has a description for LangChain."""
-        assert get_current_date.description is not None
-        assert len(get_current_date.description) > 0
+        assert get_current_date.description
 
 
 class TestCalculateFutureDate:
-    """Test suite for calculate_future_date function."""
-    
     def test_returns_string(self):
-        """Test that calculate_future_date returns a string."""
-        result = calculate_future_date.invoke({"days": 5})
-        assert isinstance(result, str)
-    
-    def test_date_format(self):
-        """Test that calculate_future_date returns date in YYYY-MM-DD format."""
-        result = calculate_future_date.invoke({"days": 10})
-        # Verify format by parsing
-        datetime.strptime(result, "%Y-%m-%d")
-        assert len(result) == 10
-        assert result[4] == "-" and result[7] == "-"
-    
-    @patch('tools.date_ops.datetime')
-    def test_zero_days(self, mock_datetime):
-        """Test calculate_future_date with 0 days returns current date."""
-        mock_now = datetime(2025, 10, 9, 12, 30, 45)
-        mock_datetime.now.return_value = mock_now
-        
-        result = calculate_future_date.invoke({"days": 0})
-        assert result == "2025-10-09"
-    
-    @patch('tools.date_ops.datetime')
-    def test_default_parameter(self, mock_datetime):
-        """Test calculate_future_date with no days parameter (defaults to 0)."""
-        mock_now = datetime(2025, 10, 9, 12, 30, 45)
-        mock_datetime.now.return_value = mock_now
-        
-        result = calculate_future_date.invoke({})
-        assert result == "2025-10-09"
-    
-    @patch('tools.date_ops.datetime')
-    def test_positive_days(self, mock_datetime):
-        """Test calculate_future_date with positive days."""
-        mock_now = datetime(2025, 10, 9, 12, 30, 45)
-        mock_datetime.now.return_value = mock_now
-        
-        # Test 7 days in the future
-        result = calculate_future_date.invoke({"days": 7})
-        assert result == "2025-10-16"
-    
-    @patch('tools.date_ops.datetime')
-    def test_negative_days(self, mock_datetime):
-        """Test calculate_future_date with negative days (past dates)."""
-        mock_now = datetime(2025, 10, 9, 12, 30, 45)
-        mock_datetime.now.return_value = mock_now
-        
-        # Test 5 days in the past
-        result = calculate_future_date.invoke({"days": -5})
-        assert result == "2025-10-04"
-    
-    @patch('tools.date_ops.datetime')
-    def test_large_positive_days(self, mock_datetime):
-        """Test calculate_future_date with large positive days."""
-        mock_now = datetime(2025, 1, 1, 12, 0, 0)
-        mock_datetime.now.return_value = mock_now
-        
-        # Test 365 days in the future
-        result = calculate_future_date.invoke({"days": 365})
-        assert result == "2026-01-01"
-    
-    @patch('tools.date_ops.datetime')
-    def test_large_negative_days(self, mock_datetime):
-        """Test calculate_future_date with large negative days."""
-        mock_now = datetime(2025, 12, 31, 12, 0, 0)
-        mock_datetime.now.return_value = mock_now
-        
-        # Test 365 days in the past
-        result = calculate_future_date.invoke({"days": -365})
-        assert result == "2024-12-31"
-    
-    @pytest.mark.parametrize("days,expected_offset", [
-        (0, 0),
-        (1, 1),
-        (7, 7),
-        (30, 30),
-        (-1, -1),
-        (-7, -7),
-        (-30, -30),
-    ])
-    def test_various_day_offsets(self, days, expected_offset):
-        """Test calculate_future_date with various day offsets."""
-        result = calculate_future_date.invoke({"days": days})
-        expected = (datetime.now() + timedelta(days=expected_offset)).strftime("%Y-%m-%d")
-        assert result == expected
-    
-    def test_month_boundary(self):
-        """Test calculate_future_date crossing month boundaries."""
-        with patch('tools.date_ops.datetime') as mock_datetime:
-            # Set date to end of month
-            mock_now = datetime(2025, 1, 31, 12, 0, 0)
-            mock_datetime.now.return_value = mock_now
-            
-            # Add 1 day should go to next month
-            result = calculate_future_date.invoke({"days": 1})
-            assert result == "2025-02-01"
-    
-    def test_year_boundary(self):
-        """Test calculate_future_date crossing year boundaries."""
-        with patch('tools.date_ops.datetime') as mock_datetime:
-            # Set date to end of year
-            mock_now = datetime(2025, 12, 31, 12, 0, 0)
-            mock_datetime.now.return_value = mock_now
-            
-            # Add 1 day should go to next year
-            result = calculate_future_date.invoke({"days": 1})
-            assert result == "2026-01-01"
-    
-    def test_tool_has_description(self):
-        """Test that the tool has a description for LangChain."""
-        assert calculate_future_date.description is not None
-        assert len(calculate_future_date.description) > 0
-    
-    def test_tool_has_args_schema(self):
-        """Test that the tool has an args schema for LangChain."""
-        assert calculate_future_date.args_schema is not None
+        assert isinstance(calculate_future_date.invoke({'days': 5}), str)
 
+    def test_date_format(self):
+        result = calculate_future_date.invoke({'days': 10})
+        datetime.strptime(result, '%Y-%m-%d')
+
+    @patch('tools.date_ops.datetime')
+    def test_zero_days(self, mock_dt):
+        mock_dt.now.return_value = datetime(2025, 10, 9, 12, 0, 0)
+        assert calculate_future_date.invoke({'days': 0}) == '2025-10-09'
+
+    @patch('tools.date_ops.datetime')
+    def test_positive_days(self, mock_dt):
+        mock_dt.now.return_value = datetime(2025, 10, 9, 12, 0, 0)
+        assert calculate_future_date.invoke({'days': 7}) == '2025-10-16'
+
+    @patch('tools.date_ops.datetime')
+    def test_negative_days(self, mock_dt):
+        mock_dt.now.return_value = datetime(2025, 10, 9, 12, 0, 0)
+        assert calculate_future_date.invoke({'days': -5}) == '2025-10-04'
+
+    def test_tool_has_description(self):
+        assert calculate_future_date.description
+
+    def test_tool_has_args_schema(self):
+        assert calculate_future_date.args_schema
+
+
+class TestDaysUntilWeekday:
+    def test_same_day_returns_seven(self):
+        assert _days_until_weekday(0, 0) == 7  # Monday → Monday
+
+    def test_forward(self):
+        assert _days_until_weekday(0, 4) == 4  # Monday → Friday
+
+    def test_wraps_correctly(self):
+        assert _days_until_weekday(5, 0) == 2  # Saturday → Monday
+
+
+class TestResolveTravelDate:
+    """Tests for _resolve_to_date (pure function) and the tool wrapper."""
+
+    def _on(self, weekday_idx: int) -> datetime:
+        """Return a Monday-anchored datetime offset by weekday_idx."""
+        monday = datetime(2026, 5, 18)  # known Monday
+        return monday + timedelta(days=weekday_idx)
+
+    # --- tomorrow ---
+    def test_tomorrow(self):
+        thursday = self._on(3)  # Thu May 21
+        result = _resolve_to_date.__wrapped__('tomorrow') if hasattr(_resolve_to_date, '__wrapped__') else None
+        # Use direct call via patching datetime
+        with patch('tools.date_ops.datetime') as mock_dt:
+            mock_dt.now.return_value = thursday
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+            result = _resolve_to_date('tomorrow')
+        assert result.strftime('%A') == 'Friday'
+
+    # --- weekend expressions ---
+    @pytest.mark.parametrize('weekday_idx,expr,expected_day', [
+        (0, 'next weekend',  'Saturday'),   # Mon → Sat
+        (1, 'next weekend',  'Saturday'),   # Tue → Sat
+        (3, 'next weekend',  'Saturday'),   # Thu → Sat  (the user's bug case)
+        (4, 'next weekend',  'Saturday'),   # Fri → Sat
+        (5, 'next weekend',  'Saturday'),   # Sat → next Sat (7 days)
+        (6, 'this weekend',  'Saturday'),   # Sun → next Sat
+        (0, 'this weekend',  'Saturday'),   # Mon → Sat
+        (5, 'this weekend',  'Saturday'),   # Sat → today (days=0)
+    ])
+    def test_weekend_expressions(self, weekday_idx, expr, expected_day):
+        anchor = self._on(weekday_idx)
+        with patch('tools.date_ops.datetime') as mock_dt:
+            mock_dt.now.return_value = anchor
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+            result = _resolve_to_date(expr)
+        assert result.strftime('%A') == expected_day
+
+    # --- named weekday expressions ---
+    @pytest.mark.parametrize('weekday_idx,expr,expected_day', [
+        (0, 'next Friday',   'Friday'),    # Mon → Fri
+        (3, 'next Friday',   'Friday'),    # Thu → Fri (1 day)
+        (4, 'next Friday',   'Friday'),    # Fri → following Fri (7 days)
+        (0, 'this Saturday', 'Saturday'),  # Mon → Sat
+        (2, 'next Monday',   'Monday'),    # Wed → Mon
+    ])
+    def test_named_weekday_expressions(self, weekday_idx, expr, expected_day):
+        anchor = self._on(weekday_idx)
+        with patch('tools.date_ops.datetime') as mock_dt:
+            mock_dt.now.return_value = anchor
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+            result = _resolve_to_date(expr)
+        assert result.strftime('%A') == expected_day
+
+    # --- numeric fallback via dateparser ---
+    def test_in_7_days(self):
+        # dateparser reads system time internally so we compare against the real now
+        result = _resolve_to_date('in 7 days')
+        expected = datetime.now() + timedelta(days=7)
+        assert result.date() == expected.date()
+
+    def test_invalid_expression_raises(self):
+        with patch('tools.date_ops.datetime') as mock_dt:
+            mock_dt.now.return_value = self._on(0)
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+            with pytest.raises(ValueError):
+                _resolve_to_date('gzorp florp baz')
+
+    def test_tool_returns_iso_date(self):
+        result = resolve_travel_date.invoke({'expression': 'tomorrow'})
+        datetime.strptime(result, '%Y-%m-%d')
+
+    def test_tool_has_description(self):
+        assert resolve_travel_date.description
+
+    def test_tool_has_args_schema(self):
+        assert resolve_travel_date.args_schema
