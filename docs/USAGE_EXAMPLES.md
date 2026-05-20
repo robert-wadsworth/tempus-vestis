@@ -12,14 +12,13 @@ This document provides example interactions with the TempusVestis AI Wardrobe Co
 What should I pack for Chicago in 7 days?
 ```
 
-**Expected Flow:**
+**Pipeline flow:**
 
-1. Agent calculates date (7 days from now)
-2. Agent retrieves weather forecast for Chicago coordinates
-3. RAG system consults wardrobe knowledge base
-4. Returns specific packing recommendations
+1. `weather_agent_node` calls `calculate_future_date(days=7)` to get the target date
+2. `weather_agent_node` calls `get_weather_forecast(41.8781, -87.6298)` for Chicago
+3. `rag_node` retrieves relevant wardrobe chunks and generates recommendations
 
-**Sample Response:**
+**Sample response:**
 
 ```text
 Based on the weather forecast for Chicago...
@@ -42,13 +41,12 @@ Footwear:
 - Sneakers or boots
 
 Accessories:
-- Light scarf (functional and fashionable)
+- Light scarf
 - Sunglasses
-- Small umbrella (just in case)
+- Small umbrella
 
 **Additional Tips**:
-Layering is key in Chicago - temperatures can vary throughout the day. The "windy city"
-nickname is earned, so a windbreaker is recommended!
+Layering is key in Chicago - temperatures can vary throughout the day.
 ```
 
 ### Example 2: Weekend Beach Trip
@@ -59,12 +57,11 @@ nickname is earned, so a windbreaker is recommended!
 I'm going to Miami this weekend, what should I wear?
 ```
 
-**Expected Flow:**
+**Pipeline flow:**
 
-1. Agent interprets "this weekend" and calculates days
-2. Agent retrieves Miami weather forecast
-3. RAG system focuses on warm weather and beach recommendations
-4. Returns beach/resort appropriate packing list
+1. `weather_agent_node` interprets "this weekend" and calls `calculate_future_date(days=5)`
+2. `weather_agent_node` calls `get_weather_forecast(25.7617, -80.1918)` for Miami
+3. `rag_node` retrieves warm-weather and beach-specific wardrobe guidelines
 
 ### Example 3: Business Trip
 
@@ -74,16 +71,15 @@ I'm going to Miami this weekend, what should I wear?
 Help me pack for a business trip to New York in 10 days
 ```
 
-**Expected Flow:**
+**Pipeline flow:**
 
-1. Agent calculates date (10 days from now)
-2. Agent retrieves New York weather forecast
-3. RAG system includes business/professional wardrobe advice
-4. Returns business-appropriate recommendations with weather considerations
+1. `weather_agent_node` calls `calculate_future_date(days=10)`
+2. `weather_agent_node` calls `get_weather_forecast(40.7128, -74.0060)` for New York
+3. `rag_node` returns business-appropriate recommendations with weather context
 
 ## Edge Cases
 
-### Example 4: Ambiguous Location
+### Example 4: Missing Location
 
 **Query:**
 
@@ -91,16 +87,7 @@ Help me pack for a business trip to New York in 10 days
 What should I pack for next week?
 ```
 
-**Expected Response:**
-
-```text
-I need more specific information to help you. Could you provide more details
-about your destination and travel dates?
-
-Please let me know:
-- Where are you traveling to?
-- What specific dates or how many days from now?
-```
+The agent can calculate the date but has no location to look up coordinates for. It will ask for the destination before proceeding.
 
 ### Example 5: Non-US Location
 
@@ -110,22 +97,18 @@ Please let me know:
 What should I wear in Paris next Monday?
 ```
 
-**Expected Response:**
+**Response:**
 
 ```text
-I apologize, but I can only provide weather-based recommendations for locations
-within the United States. The National Weather Service API that I use for weather
-data only covers US locations.
+I wasn't able to retrieve the weather forecast for that location.
 
-For international destinations, I recommend:
-- Checking weather.com or similar services for Paris weather
-- Researching seasonal weather patterns for Paris in [current season]
-- Following general packing guidelines for the expected temperature range
+This usually happens when the destination is outside the United States — the
+weather service I use (National Weather Service) only covers US locations.
 
-Would you like help planning for a US destination instead?
+Could you try again with a specific US city?
 ```
 
-### Example 6: Very Short Notice
+### Example 6: Short Notice
 
 **Query:**
 
@@ -133,16 +116,15 @@ Would you like help planning for a US destination instead?
 What should I pack for San Francisco tomorrow?
 ```
 
-**Expected Flow:**
+**Pipeline flow:**
 
-1. Agent calculates date (1 day from now)
-2. Agent retrieves SF weather forecast
-3. RAG provides recommendations with note about SF's unique climate
-4. Returns compact packing list appropriate for short trip
+1. `weather_agent_node` calls `calculate_future_date(days=1)`
+2. `weather_agent_node` calls `get_weather_forecast(37.7749, -122.4194)` for SF
+3. `rag_node` returns a compact packing list appropriate for a short trip
 
 ## Interactive Mode Examples
 
-### Full Conversation Example
+### Full Conversation
 
 ```text
 ╔══════════════════════════════════════════════════════════╗
@@ -164,7 +146,7 @@ USAGE:
 
 **Destination & Dates**: Seattle, WA - [Date Range]
 
-**Weather Summary**: Pacific Northwest weather - expect possible rain with
+**Weather Summary**: Pacific Northwest weather — expect possible rain with
 temperatures between 50-65°F.
 
 **Packing Recommendations**:
@@ -183,26 +165,11 @@ Layers:
 
 Accessories:
 - Scarf (light)
-- Sunglasses (for those moments when it's not raining!)
+- Sunglasses (for the occasional sunny break)
 
 **Additional Tips**:
-Seattle's weather can be unpredictable. The key is moisture-wicking fabrics and
-good layering. Don't overdress - locals rarely use umbrellas but having one won't
-hurt! Waterproof footwear is more important than you think.
-
-============================================================
-
-💬 You: What if it's colder than expected?
-
-🤖 TempusVestis:
-Great question! If temperatures drop below the forecast, here's what you should add:
-
-- An additional mid-weight fleece or insulated vest
-- Warm hat (can pack a lightweight beanie)
-- Light gloves
-- Thermal undershirt for extra layering
-
-The beauty of layering is flexibility - you can always add or remove as needed!
+Seattle's weather can be unpredictable. Moisture-wicking fabrics and good
+layering matter more than a heavy coat. Waterproof footwear is essential.
 
 ============================================================
 
@@ -213,10 +180,8 @@ The beauty of layering is flexibility - you can always add or remove as needed!
 
 ## Command-Line Single Query
 
-### Example Usage
-
 ```bash
-$ python main.py "What should I pack for Boston in 14 days?"
+$ uv run python main.py "What should I pack for Boston in 14 days?"
 
 ╔══════════════════════════════════════════════════════════╗
 ║                     TEMPUS VESTIS                        ║
@@ -233,47 +198,6 @@ $ python main.py "What should I pack for Boston in 14 days?"
 [Detailed recommendations follow...]
 ```
 
-## Advanced Usage: Notebook Testing
-
-### Exploring Agent Reasoning
-
-```python
-# In notebooks/02_agent_prototype.ipynb
-
-from core.agent import WardrobeAgent
-
-agent = WardrobeAgent(verbose=True)
-
-# This will show all intermediate steps
-query = "What should I pack for Austin, Texas in 7 days?"
-agent.explain_reasoning(query)
-```
-
-**Output will show:**
-
-```text
-================================================================================
-QUERY: What should I pack for Austin, Texas in 7 days?
-================================================================================
-
-REASONING STEPS:
-
-Step 1:
-  Tool: calculate_future_date
-  Input: {'days': 7}
-  Output: 2025-10-17
-
-Step 2:
-  Tool: get_weather_forecast
-  Input: {'latitude': 30.2672, 'longitude': -97.7431}
-  Output: {weather data...}
-
-================================================================================
-FINAL RESPONSE:
-================================================================================
-[Final wardrobe recommendations...]
-```
-
 ## Tips for Best Results
 
 1. **Be Specific**: Include both location and timeframe
@@ -283,30 +207,22 @@ FINAL RESPONSE:
 
 2. **US Locations Only**: The National Weather Service API covers only US destinations
 
-3. **Reasonable Timeframes**: Weather forecasts are most accurate for the next 7-10 days
+3. **Reasonable Timeframes**: Weather forecasts are most accurate within the next 7-10 days
 
-4. **Context Helps**: Mention trip purpose if relevant
+4. **Context Helps**: Mentioning the trip purpose improves recommendations
 
    - "Business trip to NYC"
    - "Beach vacation in Miami"
    - "Hiking in Colorado"
 
-5. **Follow-up Questions**: Feel free to ask for clarification or modifications
-
 ## Troubleshooting
 
-### "I encountered an error" messages
+### "I wasn't able to retrieve the weather forecast"
 
-- Check your OpenAI API key is set correctly in `.env`
-- Ensure the location is in the United States
-- Try being more specific with the location (city and state)
+- Confirm the destination is within the United States
+- Try being more specific: city and state rather than just a region
 
-### "I need more specific information"
+### Unexpected or generic recommendations
 
-- Provide both a location and a timeframe
-- Use specific dates or "X days from now"
-
-### Unexpected recommendations
-
-- Weather forecasts can change - check the weather summary in the response
-- The RAG system is conservative and suggests being prepared for various conditions
+- Weather forecasts can shift — check the weather summary in the response
+- The knowledge base is conservative and suggests being prepared for variable conditions
