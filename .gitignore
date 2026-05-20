@@ -134,6 +134,9 @@ celerybeat.pid
 # SageMath parsed files
 *.sage.py
 
+# FAISS vectorstore — rebuilt automatically on first run
+data/vectorstore/
+
 # Environments
 .env
 .envrc
