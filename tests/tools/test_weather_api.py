@@ -216,6 +216,18 @@ class TestGetWeatherForecast:
         assert result is not None
         assert "0.0,0.0" in mock_get.call_args_list[0][0][0]
 
+    def test_rejects_invalid_latitude(self):
+        with pytest.raises(Exception):
+            get_weather_forecast.invoke({"latitude": 91.0, "longitude": -87.6})
+
+    def test_rejects_invalid_longitude(self):
+        with pytest.raises(Exception):
+            get_weather_forecast.invoke({"latitude": 41.8, "longitude": 181.0})
+
+    def test_rejects_both_invalid(self):
+        with pytest.raises(Exception):
+            get_weather_forecast.invoke({"latitude": -91.0, "longitude": -181.0})
+
     def test_tool_has_description(self):
         assert get_weather_forecast.description is not None
         assert len(get_weather_forecast.description) > 0
