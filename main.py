@@ -1,16 +1,15 @@
 """
 TempusVestis - AI-Powered Wardrobe Consultant
 
-This is the main CLI application that orchestrates the agent and RAG system
-using a sequential chain approach.
+This is the main CLI application that orchestrates the weather agent and RAG
+system via a LangGraph StateGraph pipeline.
 """
 
 import os
 import sys
 from dotenv import load_dotenv
 
-from core.agent import WardrobeAgent
-from core.rag import WardrobeRAG
+from core.graph import build_wardrobe_graph
 
 # Load environment variables
 load_dotenv()
@@ -53,56 +52,31 @@ COMMANDS:
     print(help_text)
 
 
-def run_sequential_chain(query: str, verbose: bool = False) -> str:
+def run_pipeline(query: str) -> str:
     """
-    Run the sequential chain: Agent (tools) → RAG (recommendations)
-    
-    Step 1: Agent retrieves weather data using tools
-    Step 2: RAG uses weather data + wardrobe knowledge for final recommendations
-    
+    Run the LangGraph pipeline: weather_agent_node → rag_node (or error_node).
+
     Args:
         query: User's query
-        verbose: Whether to show verbose output
-        
+
     Returns:
-        Final wardrobe recommendations
+        Final wardrobe recommendations or a user-facing error message
     """
     print("\n🔍 Analyzing your request...")
-    
-    # Step 1: Use Agent to get weather data
-    agent = WardrobeAgent(verbose=verbose)
-    
-    try:
-        result = agent.get_detailed_response(query)
-        
-        # Check for errors
-        if "error" in result:
-            return result["output"]
-        
-        # Extract weather data from intermediate steps
-        weather_data = None
-        for action, observation in result.get("intermediate_steps", []):
-            if action.tool == "get_weather_forecast":
-                weather_data = observation
-                break
-        
-        # If we have weather data, use RAG for enhanced recommendations
-        if weather_data:
-            print("🌤️  Weather data retrieved successfully")
-            print("📚 Consulting wardrobe knowledge base...")
-            
-            # Step 2: Use RAG to generate recommendations
-            rag = WardrobeRAG()
-            
-            recommendations = rag.get_recommendations(query, weather_data)
-            
-            return recommendations
-        else:
-            # No weather data, return agent's response
-            return result.get("output", "I couldn't process that request.")
-            
-    except Exception as e:
-        return f"An error occurred: {str(e)}\n\nPlease try rephrasing your request with specific location and dates."
+
+    graph = build_wardrobe_graph()
+    result = graph.invoke({
+        "query": query,
+        "weather_data": None,
+        "recommendations": None,
+        "error": None,
+    })
+
+    if not result.get("error"):
+        print("🌤️  Weather data retrieved successfully")
+        print("📚 Consulting wardrobe knowledge base...")
+
+    return result.get("recommendations", "I couldn't process that request.")
 
 
 def interactive_mode():
@@ -130,7 +104,7 @@ def interactive_mode():
             
             # Process the query
             print("\n🤖 TempusVestis:")
-            response = run_sequential_chain(user_input, verbose=False)
+            response = run_pipeline(user_input)
             print("\n" + response)
             
         except KeyboardInterrupt:
@@ -146,8 +120,8 @@ def single_query_mode(query: str):
     print_banner()
     print(f"\n💬 Query: {query}")
     print("\n🤖 TempusVestis:")
-    
-    response = run_sequential_chain(query, verbose=False)
+
+    response = run_pipeline(query)
     print("\n" + response)
 
 
