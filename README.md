@@ -16,19 +16,18 @@ Tempus Vestis is an AI-powered CLI that helps you decide what to pack for any US
 
 ### Pipeline
 
-```
-User Query
-    │
-    ▼
-weather_agent_node  ──(error)──▶  error_node  ──▶  END
-    │                                                │
-    ▼                                                │
- rag_node  ──────────────────────────────────────▶  END
+```mermaid
+flowchart TD
+    A([User Query]) --> B[weather_agent_node]
+    B -->|weather data retrieved| C[rag_node]
+    B -->|error / no data| D[error_node]
+    C --> E([Packing Recommendations])
+    D --> F([User-Facing Error Message])
 ```
 
-**`weather_agent_node`** — a `langchain.agents.create_agent` tool-calling agent that calls `calculate_future_date` and `get_weather_forecast` in sequence, then writes the forecast data to graph state.
+**`weather_agent_node`** — a `langchain.agents.create_agent` tool-calling agent. It calls `get_current_date`, then `resolve_travel_date` or `calculate_future_date` to pin the target date, then `get_weather_forecast` to retrieve the NWS forecast. Weather data is written to graph state.
 
-**`rag_node`** — loads the FAISS vectorstore, retrieves the `k=4` most relevant wardrobe chunks, and generates a recommendation via `gpt-4o-mini`.
+**`rag_node`** — loads the persisted FAISS vectorstore, retrieves the `k=4` most relevant wardrobe chunks, and generates a recommendation via `gpt-4o-mini`.
 
 **`error_node`** — surfaces a clean, user-facing message when weather data cannot be retrieved (e.g. non-US location, invalid coordinates).
 
@@ -39,7 +38,7 @@ weather_agent_node  ──(error)──▶  error_node  ──▶  END
 | Pipeline | `src/core/graph.py` | LangGraph `StateGraph`, routing logic |
 | Agent | `src/core/agent.py` | Tool-calling agent, message parsing |
 | RAG | `src/core/rag.py` | Vectorstore, retrieval chain |
-| Tools | `src/tools/` | `get_weather_forecast`, `calculate_future_date`, `get_current_date` |
+| Tools | `src/tools/` | `get_current_date`, `resolve_travel_date`, `calculate_future_date`, `get_weather_forecast` |
 
 ## 🚀 Quick Start
 
@@ -129,8 +128,9 @@ pipenv run python -m pytest
 
 | Tool | Signature | Description |
 |---|---|---|
-| `get_current_date` | `() → str` | Returns today's date (YYYY-MM-DD) |
-| `calculate_future_date` | `(days: int) → str` | Returns date N days from today |
+| `get_current_date` | `() → str` | Returns today's date and weekday (e.g. `2026-05-20 Wednesday`) |
+| `resolve_travel_date` | `(expression: str) → str` | Resolves natural language dates — "next weekend", "this Friday", "in 2 weeks" — to a calendar date using weekday arithmetic and dateparser |
+| `calculate_future_date` | `(days: int) → str` | Returns the date exactly N days from today; use for explicit numeric offsets |
 | `get_weather_forecast` | `(latitude: float, longitude: float) → dict` | NWS forecast; validates coordinate ranges; retries up to 3× on network errors |
 
 ### RAG System
