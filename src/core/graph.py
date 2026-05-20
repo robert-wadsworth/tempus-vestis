@@ -13,7 +13,7 @@ from langgraph.graph import END, START, StateGraph
 from typing_extensions import TypedDict
 
 from core.agent import run_agent
-from core.prompts import WEATHER_ERROR_PROMPT
+from core.prompts import WEATHER_ERROR_MESSAGE
 from core.rag import WardrobeRAG
 
 
@@ -41,8 +41,7 @@ def rag_node(state: WardrobeState) -> WardrobeState:
 
 
 def error_node(state: WardrobeState) -> WardrobeState:
-    message = f"{WEATHER_ERROR_PROMPT}\n\nError details: {state['error']}"
-    return {**state, "recommendations": message}
+    return {**state, "recommendations": WEATHER_ERROR_MESSAGE}
 
 
 def _route_after_weather(state: WardrobeState) -> str:
