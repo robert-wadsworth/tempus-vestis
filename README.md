@@ -2,38 +2,43 @@
 
 > _"Time and Dress"_ - Your intelligent packing assistant for weather-based wardrobe recommendations
 
-Tempus Vestis is an AI-powered application that helps you determine what to pack for any trip. Using a sophisticated multi-agent system with dynamic tool selection and retrieval-augmented generation (RAG), it provides personalized, weather-based packing recommendations for US destinations.
+Tempus Vestis is an AI-powered CLI that helps you decide what to pack for any US trip. Describe your destination and timeframe in plain language; the app fetches a live weather forecast and combines it with a curated wardrobe knowledge base to return a specific, actionable packing list.
 
 ## ✨ Features
 
-- **🤖 Intelligent Agent System**: Zero-shot agent with dynamic tool selection
-- **🌤️ Real-Time Weather Data**: Integration with the National Weather Service API
-- **📚 Expert Knowledge Base**: RAG system with comprehensive wardrobe and packing guidelines
-- **🔄 Sequential Chain Architecture**: Tools → Weather → Knowledge → Recommendations
-- **💬 Natural Language Interface**: Simple conversational queries
-- **🛡️ Robust Error Handling**: Graceful clarification loops for ambiguous requests
+- **🤖 LangGraph Pipeline**: `StateGraph` routes through a weather agent node and a RAG node — readable, testable, and easy to extend
+- **🌤️ Real-Time Weather Data**: Integration with the National Weather Service API (US locations)
+- **📚 Persistent Knowledge Base**: FAISS vectorstore built once from `data/wardrobe_rules.txt` and reloaded on subsequent runs — no re-embedding cost
+- **🔍 Semantic Retrieval**: `RecursiveCharacterTextSplitter` with chunk overlap feeds relevant wardrobe guidelines into each recommendation
+- **💬 Natural Language Interface**: Plain-English queries — no commands or flags
 
 ## 🏗️ Architecture
 
-TempusVestis uses a "Tool-First" approach with three key components:
+### Pipeline
 
-### 1. Deterministic Tools (Increment 1)
+```mermaid
+flowchart TD
+    A([User Query]) --> B[weather_agent_node]
+    B -->|weather data retrieved| C[rag_node]
+    B -->|error / no data| D[error_node]
+    C --> E([Packing Recommendations])
+    D --> F([User-Facing Error Message])
+```
 
-- **Date Operations**: Parse and calculate future dates
-- **Weather API**: Retrieve weather forecasts for specific locations
-- **Unit Tested**: Comprehensive test coverage for reliability
+**`weather_agent_node`** — a `langchain.agents.create_agent` tool-calling agent. It calls `get_current_date` and `calculate_future_date` to pin the target date, then `get_weather_forecast` to retrieve the NWS forecast. Weather data is written to graph state.
 
-### 2. Agent Orchestration (Increment 2)
+**`rag_node`** — loads the persisted FAISS vectorstore, retrieves the `k=4` most relevant wardrobe chunks, and generates a recommendation via `gpt-4o-mini`.
 
-- **Zero-Shot Agent**: LangChain-powered agent with dynamic tool selection
-- **Multi-Step Reasoning**: Automatically chains tool calls (date → weather → recommendation)
-- **Error Handling**: Intelligent clarification when inputs are ambiguous
+**`error_node`** — surfaces a clean, user-facing message when weather data cannot be retrieved (e.g. non-US location, invalid coordinates).
 
-### 3. RAG Enhancement (Increment 3)
+### Components
 
-- **Vector Store**: FAISS-based knowledge base of wardrobe guidelines
-- **Semantic Search**: Retrieves relevant packing advice based on conditions
-- **Sequential Chain**: Combines real-time weather with expert knowledge
+| Layer | Module | Responsibility |
+|---|---|---|
+| Pipeline | `src/core/graph.py` | LangGraph `StateGraph`, routing logic |
+| Agent | `src/core/agent.py` | Tool-calling agent, message parsing |
+| RAG | `src/core/rag.py` | Vectorstore, retrieval chain |
+| Tools | `src/tools/` | `get_current_date`, `calculate_future_date`, `get_weather_forecast` |
 
 ## 🚀 Quick Start
 
@@ -44,42 +49,51 @@ TempusVestis uses a "Tool-First" approach with three key components:
 
 ### Installation
 
-1. **Clone the repository**
+**With uv (recommended):**
 
-   ```bash
-   git clone https://github.com/yourusername/tempus-vestis.git
-   cd tempus-vestis
-   ```
+```bash
+git clone https://github.com/yourusername/tempus-vestis.git
+cd tempus-vestis
+uv sync
+```
 
-2. **Install dependencies**
+**With pipenv:**
 
-   ```bash
-   pipenv install
-   pipenv shell
-   ```
+```bash
+git clone https://github.com/yourusername/tempus-vestis.git
+cd tempus-vestis
+pipenv install
+```
 
-3. **Set up environment variables**
+### Set up environment variables
 
-   Create a `.env` file in the project root:
+Create a `.env` file in the project root:
 
-   ```text
-   OPENAI_API_KEY=your_openai_api_key_here
-   ```
+```text
+OPENAI_API_KEY=your_openai_api_key_here
+```
 
-4. **Run the application**
+### Run the application
 
-   ```bash
-   python main.py
-   ```
+**With uv:**
+
+```bash
+uv run python main.py
+```
+
+**With pipenv:**
+
+```bash
+pipenv run python main.py
+```
 
 ## 💡 Usage
 
 ### Interactive Mode
 
-Simply run the application and describe your travel plans:
-
 ```bash
-python main.py
+uv run python main.py
+# or: pipenv run python main.py
 ```
 
 Example queries:
@@ -90,82 +104,58 @@ Example queries:
 
 ### Single Query Mode
 
-Pass a query as a command-line argument:
-
 ```bash
-python main.py "What should I pack for New York in 5 days?"
-```
-
-### Jupyter Notebook (Development)
-
-Explore the agent's reasoning in detail:
-
-```bash
-cd notebooks
-jupyter notebook 02_agent_prototype.ipynb
+uv run python main.py "What should I pack for New York in 5 days?"
 ```
 
 ## 🧪 Testing
 
-Run the test suite:
+**With uv:**
 
 ```bash
-pytest
+uv run python -m pytest
 ```
 
-Run with coverage:
+**With pipenv:**
 
 ```bash
-pytest --cov=src tests/
+pipenv run python -m pytest
 ```
 
 ## 🔧 Technical Details
 
 ### Tools
 
-1. **`get_current_date()`**: Returns the current date in ISO format
-2. **`calculate_future_date(days: int)`**: Calculates a date N days in the future
-3. **`get_weather_forecast(latitude: float, longitude: float)`**: Retrieves weather forecast from NWS API
-
-### Agent Flow
-
-```text
-User Query → Agent Executor → Tool Selection → Weather Retrieval → RAG Chain → Final Recommendation
-```
+| Tool | Signature | Description |
+|---|---|---|
+| `get_current_date` | `() → str` | Returns today's date (e.g. `2026-05-20`) |
+| `calculate_future_date` | `(days: int) → str` | Returns the date exactly N days from today |
+| `get_weather_forecast` | `(latitude: float, longitude: float) → dict` | NWS forecast; validates coordinate ranges; retries up to 3× on network errors |
 
 ### RAG System
 
 - **Embeddings**: OpenAI `text-embedding-3-small`
-- **Vector Store**: FAISS for fast semantic search
-- **Knowledge Base**: Comprehensive wardrobe guidelines covering:
-  - Temperature-based recommendations
-  - Weather condition strategies
-  - Activity-specific advice
-  - Packing optimization tips
-  - Regional considerations
+- **Vector Store**: FAISS — persisted to `data/vectorstore/` after the first run
+- **Chunking**: `RecursiveCharacterTextSplitter` (chunk size 500, overlap 100)
+- **Retrieval**: top-4 chunks per query (`RETRIEVAL_K = 4`)
+- **Knowledge Base**: `data/wardrobe_rules.txt` — covers temperature ranges, weather conditions, activity types, and packing strategies
+
+### Dependency Management
+
+The project uses `pyproject.toml` as the single source of truth for package metadata and dependencies. `uv.lock` pins exact versions for reproducible installs. `Pipfile` is kept for backwards compatibility.
 
 ## 🌐 API Limitations
 
-**Important**: The National Weather Service API only supports **US locations**. The agent will inform users if they request forecasts for international destinations.
-
-## 📚 Development Plan
-
-See [`docs/DEVELOPMENT_PLAN.md`](docs/DEVELOPMENT_PLAN.md) for the complete incremental development plan, including:
-
-- ✅ Increment 0: Setup & Foundation
-- ✅ Increment 1: The Code Tools
-- ✅ Increment 2: The Agent's Brain
-- ✅ Increment 3: Error & Multi-Step Flow
+The National Weather Service API covers **US locations only**. Queries for non-US destinations are caught by the error node and surface a helpful message.
 
 ## 🤝 Contributing
 
 This is a portfolio project demonstrating:
 
-- LangChain agent orchestration
+- LangGraph agent orchestration
 - Tool-first AI architecture
-- RAG implementation
+- RAG implementation with vectorstore persistence
 - Test-driven development
-- Clean code structure
 
 ## 📄 License
 
@@ -173,14 +163,10 @@ This project is for portfolio and educational purposes.
 
 ## 🙏 Acknowledgments
 
-- **LangChain**: For the excellent agent framework
+- **LangChain / LangGraph**: For the agent and graph frameworks
 - **National Weather Service**: For the free weather API
-- **OpenAI**: For GPT-4 and embeddings models
-
-## 📞 Contact
-
-For questions or feedback, please reach out via GitHub issues.
+- **OpenAI**: For GPT-4o-mini and embeddings models
 
 ---
 
-## _Built with ❤️ using LangChain, OpenAI, and Python_
+_Built with ❤️ using LangGraph, LangChain, OpenAI, and Python_

@@ -14,10 +14,8 @@ What should I pack for Chicago in 7 days?
 
 **Expected Flow:**
 
-1. Agent calculates date (7 days from now)
-2. Agent retrieves weather forecast for Chicago coordinates
-3. RAG system consults wardrobe knowledge base
-4. Returns specific packing recommendations
+1. `weather_agent_node` calls `calculate_future_date(days=7)` then `get_weather_forecast` for Chicago
+2. `rag_node` retrieves relevant wardrobe chunks and generates recommendations
 
 **Sample Response:**
 
@@ -61,10 +59,8 @@ I'm going to Miami this weekend, what should I wear?
 
 **Expected Flow:**
 
-1. Agent interprets "this weekend" and calculates days
-2. Agent retrieves Miami weather forecast
-3. RAG system focuses on warm weather and beach recommendations
-4. Returns beach/resort appropriate packing list
+1. `weather_agent_node` calls `calculate_future_date` for the weekend date then `get_weather_forecast` for Miami
+2. `rag_node` retrieves warm-weather and beach-relevant wardrobe chunks and generates recommendations
 
 ### Example 3: Business Trip
 
@@ -76,10 +72,8 @@ Help me pack for a business trip to New York in 10 days
 
 **Expected Flow:**
 
-1. Agent calculates date (10 days from now)
-2. Agent retrieves New York weather forecast
-3. RAG system includes business/professional wardrobe advice
-4. Returns business-appropriate recommendations with weather considerations
+1. `weather_agent_node` calls `calculate_future_date(days=10)` then `get_weather_forecast` for New York
+2. `rag_node` retrieves business/professional wardrobe chunks and generates recommendations
 
 ## Edge Cases
 
@@ -93,14 +87,7 @@ What should I pack for next week?
 
 **Expected Response:**
 
-```text
-I need more specific information to help you. Could you provide more details
-about your destination and travel dates?
-
-Please let me know:
-- Where are you traveling to?
-- What specific dates or how many days from now?
-```
+The agent will ask for the missing destination before attempting to retrieve a forecast.
 
 ### Example 5: Non-US Location
 
@@ -113,16 +100,11 @@ What should I wear in Paris next Monday?
 **Expected Response:**
 
 ```text
-I apologize, but I can only provide weather-based recommendations for locations
-within the United States. The National Weather Service API that I use for weather
-data only covers US locations.
+I wasn't able to retrieve the weather forecast for that location.
 
-For international destinations, I recommend:
-- Checking weather.com or similar services for Paris weather
-- Researching seasonal weather patterns for Paris in [current season]
-- Following general packing guidelines for the expected temperature range
+This usually happens when the destination is outside the United States — the weather service I use (National Weather Service) only covers US locations.
 
-Would you like help planning for a US destination instead?
+Could you try again with a specific US city?
 ```
 
 ### Example 6: Very Short Notice
@@ -135,10 +117,8 @@ What should I pack for San Francisco tomorrow?
 
 **Expected Flow:**
 
-1. Agent calculates date (1 day from now)
-2. Agent retrieves SF weather forecast
-3. RAG provides recommendations with note about SF's unique climate
-4. Returns compact packing list appropriate for short trip
+1. `weather_agent_node` calls `calculate_future_date(days=1)` then `get_weather_forecast` for San Francisco
+2. `rag_node` retrieves SF-relevant wardrobe chunks (noting its unique microclimate) and generates recommendations
 
 ## Interactive Mode Examples
 
@@ -231,47 +211,6 @@ $ python main.py "What should I pack for Boston in 14 days?"
 📚 Consulting wardrobe knowledge base...
 
 [Detailed recommendations follow...]
-```
-
-## Advanced Usage: Notebook Testing
-
-### Exploring Agent Reasoning
-
-```python
-# In notebooks/02_agent_prototype.ipynb
-
-from core.agent import WardrobeAgent
-
-agent = WardrobeAgent(verbose=True)
-
-# This will show all intermediate steps
-query = "What should I pack for Austin, Texas in 7 days?"
-agent.explain_reasoning(query)
-```
-
-**Output will show:**
-
-```text
-================================================================================
-QUERY: What should I pack for Austin, Texas in 7 days?
-================================================================================
-
-REASONING STEPS:
-
-Step 1:
-  Tool: calculate_future_date
-  Input: {'days': 7}
-  Output: 2025-10-17
-
-Step 2:
-  Tool: get_weather_forecast
-  Input: {'latitude': 30.2672, 'longitude': -97.7431}
-  Output: {weather data...}
-
-================================================================================
-FINAL RESPONSE:
-================================================================================
-[Final wardrobe recommendations...]
 ```
 
 ## Tips for Best Results
