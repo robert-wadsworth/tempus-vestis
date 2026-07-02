@@ -14,6 +14,13 @@ from core.graph import build_wardrobe_graph
 # Load environment variables
 load_dotenv()
 
+# On Windows, the default console codepage (cp1252) can't encode the emoji/
+# box-drawing characters this CLI prints, raising UnicodeEncodeError before
+# any real output appears. Force UTF-8 so `python main.py` works without
+# requiring PYTHONUTF8=1 to be set externally.
+if sys.stdout.encoding is not None and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+
 
 def print_banner():
     """Print the application banner."""
