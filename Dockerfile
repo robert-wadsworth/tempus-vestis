@@ -1,12 +1,20 @@
-# Phase 1 (PORT-18/PORT-22): token-gated proxy + UI only.
-# Deliberately does NOT install the LangGraph/FAISS stack from pyproject.toml —
-# that's Phase 2. See app/requirements.txt for the Phase 1 dependency set.
+# Phase 2 (PORT-30): the image now carries the full pipeline. This supersedes
+# the Phase 1 "app/ isolated from src/" decision (knowledge/decisions.md):
+# POST /recommend runs the LangGraph/FAISS/OpenAI stack, so app/ and src/ share
+# one dependency tree now. Installing `.[web]` resolves the pipeline deps
+# (pyproject [project].dependencies) and the web layer (the `web` extra)
+# together in a single pip pass — and installs the src/ package itself so
+# `core`/`tools` are importable.
+#
+# The FAISS index is NOT baked in — it's downloaded from GCS on startup
+# (PORT-27), so data/wardrobe_rules.txt is intentionally absent from the image.
 FROM python:3.11-slim
 
 WORKDIR /srv
 
-COPY app/requirements.txt app/requirements.txt
-RUN pip install --no-cache-dir -r app/requirements.txt
+COPY pyproject.toml pyproject.toml
+COPY src/ src/
+RUN pip install --no-cache-dir .[web]
 
 COPY app/ app/
 

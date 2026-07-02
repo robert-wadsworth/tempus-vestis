@@ -4,23 +4,29 @@ AI-powered wardrobe consultant (LangGraph agent + RAG over a wardrobe knowledge 
 NWS weather API). Originally a standalone local CLI (`main.py`, `src/`) — see `README.md`
 for that half of the project.
 
-## Phase 1 (PORT-18): token-gated web front end
+## Web service (`app/`) — Phase 1 (PORT-18) + Phase 2 (PORT-25)
 
-Deploying a minimal Cloud Run service that gates access with the shared portfolio
-`authentication` service (`rw-gcp-shared-infa/authentication/`), before any web-facing
-LangGraph work happens. Lives entirely in `app/` — deliberately does not import
-anything from `src/` or install the LangGraph/FAISS dependency stack (see
-`app/requirements.txt` vs. root `pyproject.toml`).
+A Cloud Run service that gates access with the shared portfolio `authentication`
+service (`rw-gcp-shared-infa/authentication/`) and serves wardrobe recommendations.
 
-- `app/main.py` — FastAPI proxy: `GET /`, `GET /health`, `POST /verify` (forwards to
-  the auth service as `X-Auth-Token`, plus a Google ID token fetched from the Cloud Run
-  metadata server when available — see `knowledge/decisions.md`)
-- `app/static/index.html` — the entire frontend, single file
-- `Dockerfile` — Phase 1 image only (`python:3.11-slim` + `app/requirements.txt`)
-- `infra/` — Terraform root module for the Phase 1 Cloud Run deployment (PORT-23)
+- `app/main.py` — FastAPI app:
+  - `GET /`, `GET /health`
+  - `POST /verify` — forwards a token to the auth service as `X-Auth-Token`, plus a
+    Google ID token fetched from the Cloud Run metadata server when available
+  - `POST /recommend` (Phase 2) — verifies-and-consumes the token **once**, then runs
+    the `src/` LangGraph/RAG pipeline and returns `{recommendation, uses_remaining}`.
+    Skips the pipeline entirely on a rejected token (no OpenAI cost). Shares the
+    `_verify_and_consume()` helper with `/verify`.
+- `app/static/index.html` — the entire frontend, single file (token + query form)
+- `Dockerfile` — installs `.[web]` (full pipeline + web layer; see `knowledge/decisions.md`)
+- `infra/` — Terraform root module: Cloud Run, the vectorstore GCS bucket, and the
+  OpenAI-key Secret Manager secret
+- `scripts/seed_vectorstore.py` — manual step to (re)build the FAISS index and upload
+  it to GCS; run when `data/wardrobe_rules.txt` changes
 
-Phase 2 (out of scope for now): wiring `POST /recommend` to the LangGraph pipeline,
-GCS bucket for the FAISS index, Secret Manager for `OPENAI_API_KEY`.
+**Phase 2 flipped the Phase 1 isolation:** `app/` now shares `src/`'s
+LangGraph/FAISS/OpenAI dependency tree (unified in `pyproject.toml`'s `web` extra), and
+the service now has a real per-request OpenAI cost. See `knowledge/decisions.md`.
 
 ## Relationship to the shared portfolio infra
 

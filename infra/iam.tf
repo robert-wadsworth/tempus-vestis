@@ -18,6 +18,15 @@ resource "google_cloud_run_v2_service_iam_member" "tempus_vestis_can_invoke_auth
   member   = "serviceAccount:${google_service_account.tempus_vestis_run.email}"
 }
 
+# Read-only access to the vectorstore bucket only (PORT-27), scoped to this
+# single bucket rather than a project-wide roles/storage.objectViewer grant —
+# the container downloads index.faiss/index.pkl on startup, nothing more.
+resource "google_storage_bucket_iam_member" "tempus_vestis_reads_vectorstore" {
+  bucket = google_storage_bucket.vectorstore.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.tempus_vestis_run.email}"
+}
+
 # Public/unauthenticated by design (PORT-23) — this is the browser-facing UI.
 # Only possible because of the rw-portfolio-scoped iam.allowedPolicyMemberDomains
 # override; see knowledge/decisions.md (2026-07-02, "Override

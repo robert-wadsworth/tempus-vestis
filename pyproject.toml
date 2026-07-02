@@ -5,6 +5,7 @@ description = "AI-Powered Wardrobe Consultant"
 requires-python = ">=3.11"
 dependencies = [
     "faiss-cpu>=1.12.0",
+    "google-cloud-storage>=2.18.0",
     "langchain>=1.0.0",
     "langchain-community>=0.3.0",
     "langchain-core>=1.4.0",
@@ -17,6 +18,16 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Web layer for the Phase 2 container (PORT-30). Phase 1 pinned these in
+# app/requirements.txt in isolation from the pipeline; Phase 2 deliberately
+# merges the trees so pip resolves fastapi/pydantic and LangChain's pydantic in
+# a single pass (avoids the partial-uninstall conflict logged in
+# knowledge/decisions.md). The Dockerfile installs `.[web]`.
+web = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "httpx>=0.28.0",
+]
 dev = [
     "ipykernel",
     "pytest",

@@ -4,6 +4,105 @@
 
 ---
 
+### 2026-07-02 — Phase 2 drops `tempus-vestis` VPC egress entirely; auth service moved to public IAM-gated ingress (supersedes the PORT-24 `ALL_TRAFFIC` egress decision below)
+
+**Decision:** Removed the `vpc_access` block from `infra/cloud_run.tf`.
+`tempus-vestis` now uses Cloud Run's default internet egress. This required
+relaxing the shared `authentication` service to `ingress = ALL` (still IAM-gated)
+so its `*.run.app` endpoint is reachable over the public path — see
+`rw-gcp-shared-infa/knowledge/decisions.md` (2026-07-02, same date) for the
+shared-side rationale and cost trade-off.
+
+**Why:** Phase 2's `POST /recommend` calls OpenAI and NWS — public-internet, non-
+Google endpoints. Under the previous `egress = ALL_TRAFFIC` design (needed to reach
+the then-`INTERNAL_ONLY` auth service through the VPC), those calls were forced
+through the VPC, which has no Cloud NAT and therefore no internet route — so they
+hung indefinitely (the UI spun forever on a real query; a bad token still 401'd in
+0.5s, proving the hang was the post-auth pipeline egress, not auth). Cloud Run
+allows only one egress mode per service, so we couldn't route auth via VPC and
+OpenAI/NWS via the internet simultaneously. Rather than pay ~$32/mo for a Cloud NAT
+to give the VPC path an internet route, we made the auth service publicly reachable
+(IAM still gates it) and dropped this service's VPC membership altogether. GCS
+(startup vectorstore download) also uses the public path now and still works
+(confirmed: the new revision passed its startup probe).
+
+**Supersedes:** the "Cloud Run→Cloud Run private calls need `egress = ALL_TRAFFIC`"
+decision below. That analysis was correct *while the auth service was
+`INTERNAL_ONLY`*; once it moved to public IAM-gated ingress, routing anything
+through the VPC became unnecessary here.
+
+---
+
+### 2026-07-02 — Phase 2 (PORT-25) merges `app/` and `src/` into one dependency tree; supersedes the Phase 1 isolation decision
+
+**Decision:** `POST /recommend` runs the real LangGraph/RAG pipeline from `src/`,
+so the deliberate Phase 1 isolation ("Phase 1 web app lives in `app/`, isolated
+from `src/`", below) is intentionally undone. Concretely:
+
+1. **Dependencies unified in `pyproject.toml`.** The web layer
+   (`fastapi`/`uvicorn`/`httpx`) moved into a `web` optional-dependency group;
+   the `Dockerfile` now does `pip install .[web]`, which resolves the pipeline
+   deps and the web deps in a *single* pip pass and installs the `src/` package
+   so `core`/`tools` are importable. This is the fix for the pinned-`pydantic`
+   partial-uninstall conflict logged below ("Never `pip install` into the main
+   `.venv`…") — one resolver pass, no pinned `pydantic==2.10.4` fighting
+   LangChain's newer `pydantic`. `uv sync --extra web` confirmed clean locally.
+2. **Cloud Run resized (PORT-30):** memory `512Mi → 1Gi` (LangChain + faiss-cpu
+   imported), and the startup probe widened from ~32s to ~125s
+   (`period 10 × failure_threshold 12`, after `initial_delay 5`) because the
+   heavier image import + the on-startup GCS vectorstore download take much
+   longer than the Phase 1 proxy. `startup_cpu_boost` (already on) keeps that
+   import off the throttled idle-CPU allocation — same reasoning as the auth
+   service's boost.
+
+**Why:** The whole point of Phase 2 is to serve recommendations, which *is* the
+`src/` pipeline. Keeping the trees split would mean duplicating or shelling out
+to it; merging is the honest structure now. The isolation was correct for Phase
+1 (prove token-gating with a tiny image, no OpenAI key needed) and is simply no
+longer the goal.
+
+### 2026-07-02 — FAISS vectorstore lives in GCS and is downloaded on startup; the container never rebuilds it
+
+**Decision (PORT-27):** A new private bucket
+(`rw-portfolio-tempus-vestis-vectorstore`, us-central1, uniform access,
+public-access-prevention enforced) holds `index.faiss`/`index.pkl`. The
+container downloads them into `/tmp/vectorstore` on startup (`VECTORSTORE_PATH`
+env, consumed by `src/core/rag.py`) and **fails loudly** if the download fails —
+it deliberately does *not* fall back to `get_or_create_vectorstore()`'s local
+rebuild path. Seeding is a manual `scripts/seed_vectorstore.py` step, run only
+when `data/wardrobe_rules.txt` changes, not part of deploy. The run SA gets
+`roles/storage.objectViewer` scoped to just this bucket.
+
+**Why:** The index is data, not code — baking it into the image would force a
+rebuild on every knowledge-base edit. And the rebuild fallback is a cost trap:
+it needs `OPENAI_API_KEY` and would re-embed the whole knowledge base on every
+cold start if the download silently failed. Failing loud turns a
+misconfiguration into a failed deploy (caught by the startup probe) instead of a
+surprise OpenAI bill.
+
+### 2026-07-02 — OpenAI key in Secret Manager; `/recommend` is one token-use and skips the pipeline on a bad token
+
+**Decision (PORT-26/28):**
+- `OPENAI_API_KEY` is stored in Secret Manager (`tempus-vestis-openai-api-key`)
+  and mounted into Cloud Run via v2 `value_source.secret_key_ref`, not a
+  plaintext env value. First real Secret Manager use in the portfolio.
+- `POST /recommend` and `POST /verify` share one **synchronous**
+  `_verify_and_consume()` helper (sync `httpx.Client`; FastAPI runs sync
+  handlers in its threadpool, so the blocking NWS/OpenAI graph doesn't need
+  `async`/`run_in_threadpool`). `/recommend` verifies-and-consumes **once**, and
+  if the token is rejected it returns the same error shape as `/verify` and
+  **does not run the pipeline** — so an invalid/exhausted token incurs zero
+  OpenAI cost. Weather/non-US failures are handled inside the graph
+  (`error_node` → friendly message), so they return a normal 200; the try/except
+  around the graph only catches genuinely unexpected failures as a clean 502.
+
+**⚠️ Cost note:** This is the **first real per-use marginal cost anywhere in the
+portfolio** — every successful `/recommend` makes `gpt-4o-mini` chat + embedding
+retrieval calls. Small, but no longer ~$0. Embeddings for the knowledge base are
+computed once at seed time, not per request.
+
+---
+
 ### 2026-07-02 — Cloud Run→Cloud Run private calls need `egress = ALL_TRAFFIC` + Private Google Access on, not `PRIVATE_RANGES_ONLY`
 
 **Decision:** `infra/cloud_run.tf`'s `vpc_access.egress` is `ALL_TRAFFIC`, not
