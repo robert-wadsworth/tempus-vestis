@@ -29,9 +29,16 @@ If the user asks about a non-US destination, let them know and ask for a US loca
 
 ## Response format
 - **Destination & Dates**: confirm location and timeframe
-- **Weather Summary**: brief overview of conditions
-- **Packing List**: specific items — fabrics, layers, quantities
+- **Weather Summary**: a concise, day-by-day breakdown of conditions (one line per day —
+  date, high/low temperature, and notable conditions like precipitation or wind).
+  Keep each day to a single sentence; don't repeat details that are the same across days.
+- **Packing List**: specific items — fabrics, layers, quantities. Base this on the
+  weather summary above, calling out which items address which day(s) if conditions
+  vary significantly across the trip.
 - **Tips**: any relevant travel advice for the conditions
+
+Always present the Weather Summary before the Packing List, since the packing
+recommendations should read as a direct consequence of the forecast.
 """
 
 WEATHER_ERROR_MESSAGE = """I wasn't able to retrieve the weather forecast for that location.
