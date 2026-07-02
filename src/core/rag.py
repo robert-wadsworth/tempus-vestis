@@ -20,7 +20,10 @@ RETRIEVAL_K = 4
 # drifting into generic suggestions.
 LLM_TEMPERATURE = 0.7
 
-_VECTORSTORE_PATH = "data/vectorstore"
+# Where the FAISS index lives on disk. Defaults to the local dev path; the
+# Cloud Run container overrides it via VECTORSTORE_PATH to point at the copy it
+# downloads from GCS into /tmp on startup (see app/main.py, PORT-27).
+_VECTORSTORE_PATH = os.getenv("VECTORSTORE_PATH", "data/vectorstore")
 _CHUNK_SIZE = 500
 _CHUNK_OVERLAP = 100
 
