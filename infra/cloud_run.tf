@@ -16,6 +16,13 @@ resource "google_cloud_run_v2_service" "tempus_vestis" {
       max_instance_count = 1
     }
 
+    # Denial-of-wallet control (2026-07-02 security audit): without this, Cloud
+    # Run's default concurrency (80) means a single instance would happily
+    # accept up to 80 simultaneous /recommend requests, each triggering a real
+    # OpenAI call. 10 caps the worst-case burst cost per instance while still
+    # being far above realistic personal-project traffic.
+    max_instance_request_concurrency = 10
+
     # No vpc_access: this service uses Cloud Run's default internet egress. Phase
     # 2 (PORT-25) added public-internet dependencies (OpenAI, NWS) on top of the
     # existing auth-service call. Rather than route everything through the VPC

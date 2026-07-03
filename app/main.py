@@ -17,9 +17,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 AUTH_SERVICE_URL = os.environ["AUTH_SERVICE_URL"].rstrip("/")
 STATIC_DIR = Path(__file__).parent / "static"
@@ -149,6 +152,17 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="tempus-vestis", lifespan=lifespan)
 
+# Denial-of-wallet control (2026-07-02 security audit): /verify is unauthenticated
+# by design (that's the point of it), so without a limit here it could be hammered
+# with garbage tokens at no cost to the caller, each attempt still costing a round
+# trip to the auth service + Cloud SQL. /recommend gets a tighter limit since each
+# accepted request costs real OpenAI spend. In-memory storage is fine because
+# max_instance_count = 1 (infra/cloud_run.tf) — there's only ever one instance to
+# keep state in, so no Redis/shared backend is needed.
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 
 class VerifyRequest(BaseModel):
     token: str
@@ -170,13 +184,15 @@ def index():
 
 
 @app.post("/verify")
-def verify(body: VerifyRequest):
+@limiter.limit("20/minute")
+def verify(request: Request, body: VerifyRequest):
     result = _verify_and_consume(body.token)
     return JSONResponse(result.body, status_code=result.status_code)
 
 
 @app.post("/recommend")
-def recommend(body: RecommendRequest):
+@limiter.limit("10/minute")
+def recommend(request: Request, body: RecommendRequest):
     # Verify+consume first. On any failure, return the same error shape /verify
     # uses and stop here — no pipeline run, so an invalid/exhausted token never
     # incurs OpenAI cost.
