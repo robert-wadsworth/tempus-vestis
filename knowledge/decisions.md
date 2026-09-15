@@ -61,6 +61,17 @@ was documenting as missing — `create_wardrobe_rag_chain`'s prompt template in
 instead of answering them. Removed the `xfail(strict=True)` marker once the
 eval passed for real against the updated prompt (not weakened to force a pass).
 
+**Follow-up (same day):** Added `test_compound_request_does_not_leak_off_topic_content`
+to `test_offtopic_eval.py` after manual probing found the guardrail is
+inconsistent on compound requests (packing question + off-topic ask in one
+message): a blunt version gets declined outright, but wrapping the off-topic
+half as trip-related ("a poem for my travel journal about the ocean on my
+trip") slips past the topic classifier. The model still didn't comply with
+the smuggled-in request in testing — it silently dropped it while answering
+the packing half — but that's not guaranteed to hold under a prompt or model
+change, so it's asserted directly (decline, or no off-topic content produced)
+rather than assumed safe.
+
 ---
 
 ### 2026-07-02 — Phase 2 drops `tempus-vestis` VPC egress entirely; auth service moved to public IAM-gated ingress (supersedes the PORT-24 `ALL_TRAFFIC` egress decision below)
