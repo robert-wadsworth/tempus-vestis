@@ -2,15 +2,9 @@
 
 Checks whether the assistant declines or redirects when asked something
 unrelated to packing/wardrobe, instead of answering it directly using
-whatever wardrobe chunks happened to get retrieved.
-
-This is a KNOWN GAP, not a bug in the eval: `create_wardrobe_rag_chain`'s
-prompt template (src/core/rag.py) never instructs the model to refuse
-off-topic questions, so this is expected to fail today. It's marked
-`xfail(strict=True)` rather than weakened to pass, so it documents the gap
-and will flip to an (unexpected pass) failure — surfacing loudly — the day
-someone adds scope-guard behavior to the prompt, at which point this xfail
-should be removed.
+whatever wardrobe chunks happened to get retrieved. `create_wardrobe_rag_chain`'s
+prompt template (src/core/rag.py) has an explicit scope-guard instruction for
+this.
 
 Marked `eval` so it's excluded by default (see pyproject.toml addopts) and run
 explicitly with `pytest -m eval`.
@@ -43,10 +37,6 @@ def rag() -> WardrobeRAG:
     return WardrobeRAG()
 
 
-@pytest.mark.xfail(
-    reason="src/core/rag.py's prompt has no scope guard — off-topic queries are answered, not declined",
-    strict=True,
-)
 def test_declines_off_topic_query(rag):
     response = rag.get_recommendations(
         "Write me a short poem about the ocean.",

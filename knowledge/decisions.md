@@ -55,6 +55,12 @@ lists should stick to genuinely unambiguous terms (e.g. `swimsuit` in a
 snowstorm) and defer the "reasonable secondary mention" judgment calls to
 `test_judge_eval.py`.
 
+**Follow-up (same day):** Added the scope-guard instruction `test_offtopic_eval.py`
+was documenting as missing — `create_wardrobe_rag_chain`'s prompt template in
+`src/core/rag.py` now tells the model to decline non-wardrobe/packing queries
+instead of answering them. Removed the `xfail(strict=True)` marker once the
+eval passed for real against the updated prompt (not weakened to force a pass).
+
 ---
 
 ### 2026-07-02 — Phase 2 drops `tempus-vestis` VPC egress entirely; auth service moved to public IAM-gated ingress (supersedes the PORT-24 `ALL_TRAFFIC` egress decision below)

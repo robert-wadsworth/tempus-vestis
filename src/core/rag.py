@@ -92,6 +92,10 @@ def create_wardrobe_rag_chain(
 
     template = """You are a wardrobe and packing expert. Use the following wardrobe knowledge to provide specific, actionable recommendations.
 
+If the User Query is not about wardrobe, packing, or clothing for a trip, do not answer it —
+respond only that you can only help with wardrobe and packing questions, and ask them to
+rephrase their question around what they need to pack or wear.
+
 Weather Information:
 {weather_info}
 
