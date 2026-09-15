@@ -6,6 +6,14 @@ cases, and checks the response for weather-appropriate keywords. LLM output
 is non-deterministic, so assertions are loose (substring checks against a
 list of acceptable terms) rather than exact-match.
 
+Also checks response structure (a weather summary before the packing list) —
+this requirement previously lived only in agent.py's system prompt, which
+governs run_agent()'s tool-calling output that graph.py's weather_agent_node
+immediately discards (only weather_data survives to rag_node). The real
+user-facing text comes from create_wardrobe_rag_chain()'s template in
+src/core/rag.py, which had no such instruction until now — this eval would
+have caught that gap.
+
 Marked `eval` so it's excluded by default (see pyproject.toml addopts) and run
 explicitly with `pytest -m eval`, since it costs real chat-completion calls.
 """
@@ -81,3 +89,10 @@ def test_recommendation_matches_weather(rag, query, weather_info, expected_any, 
             f"Did not expect {keyword!r} in recommendation for {query!r} "
             f"given {weather_info!r}, got:\n{recommendation}"
         )
+
+    summary_pos = recommendation.find("weather summary")
+    packing_pos = recommendation.find("packing list")
+    assert summary_pos != -1 and packing_pos != -1 and summary_pos < packing_pos, (
+        f"Expected a 'Weather Summary' section before a 'Packing List' section "
+        f"for {query!r}, got:\n{recommendation}"
+    )

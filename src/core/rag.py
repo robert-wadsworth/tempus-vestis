@@ -104,7 +104,16 @@ Relevant Wardrobe Guidelines:
 
 User Query: {question}
 
-Provide a detailed, practical packing list and wardrobe recommendations based on the weather and the wardrobe guidelines. Be specific about clothing items, accessories, and quantities."""
+Structure your response in this order:
+1. **Weather Summary**: a concise, day-by-day breakdown of the forecast above (one line
+   per day — date/day name, high/low temperature, and notable conditions like
+   precipitation or wind). Keep each day to a single sentence.
+2. **Packing List**: a detailed, practical packing list and wardrobe recommendations
+   based on that weather summary and the wardrobe guidelines. Be specific about
+   clothing items, accessories, and quantities.
+
+Always present the Weather Summary before the Packing List, since the packing
+recommendations should read as a direct consequence of the forecast."""
 
     prompt = ChatPromptTemplate.from_template(template)
 
