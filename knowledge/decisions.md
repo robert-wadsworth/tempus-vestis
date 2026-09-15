@@ -4,6 +4,59 @@
 
 ---
 
+### 2026-09-15 — LLM evals live in `tests/evals/`, excluded from the default `pytest` run
+
+**Decision:** Added `tests/evals/test_retrieval_eval.py` (real FAISS + embeddings
+call, checks retrieved chunks contain expected keywords) and
+`tests/evals/test_recommendation_eval.py` (real end-to-end `gpt-4o-mini` call,
+checks the recommendation contains at least one weather-appropriate keyword and
+none of a small forbidden list). Both are marked `@pytest.mark.eval` and
+registered in `pyproject.toml`; `addopts = "-m 'not eval'"` excludes them from a
+plain `pytest` run, so they must be run explicitly with `pytest -m eval`.
+
+**Why:** Unlike the rest of the suite (`tests/core/`, `tests/tools/`, `tests/app/`),
+which mocks the LLM/embeddings calls, these evals exist to catch quality
+regressions in the RAG pipeline itself — a change to `RETRIEVAL_K`, the prompt
+template, or the knowledge base could silently make recommendations worse
+without breaking any mocked test. Keeping them opt-in avoids real API cost and
+non-deterministic failures on every commit; `tests/conftest.py` loads `.env` so
+they pick up `OPENAI_API_KEY` locally the same way `main.py` does.
+
+**Follow-up (same day):** Added `tests/evals/test_judge_eval.py`, an LLM-as-judge
+eval that scores the same golden (query, weather) cases — now shared via
+`tests/evals/golden_cases.py` — against a rubric via a second `gpt-4o-mini`
+call (`temperature=0`, JSON verdict). Added after the keyword eval initially
+flagged a real response for mentioning "sandals" as a secondary camp shoe next
+to insulated boots — reasonable advice, not a wrong answer, but indistinguishable
+from a real error under plain substring matching. Kept both: the keyword eval
+stays as the cheap, fast, always-available gate; the judge eval catches
+judgment-call failures the keyword eval can't express, at roughly double the
+API cost per case (one call to generate, one to judge) and with its own
+non-determinism layered on top.
+
+**Follow-up (same day):** Added three more golden cases (`MID_RANGE_RAINY`,
+`BUSINESS_TRIP` in `golden_cases.py`, plus a business-attire retrieval case) to
+exercise rule sections the first two cases never touched, and two new eval
+files: `test_error_path_eval.py` (real end-to-end `build_wardrobe_graph()` run
+with a non-US destination — checks the *real* agent/NWS/error-routing path,
+not the already-mocked routing logic in `tests/core/test_graph.py`) and
+`test_offtopic_eval.py` (checks whether the assistant declines an unrelated
+query). The off-topic case is `xfail(strict=True)`, not passing: `src/core/rag.py`'s
+prompt has no scope-guard instruction, so it currently answers off-topic
+questions instead of declining. Left as a documented gap rather than papering
+over it with a weaker assertion — `strict=True` means it'll flip to a loud
+failure (unexpectedly passing) the day someone adds scope-guard behavior,
+which is the signal to remove the xfail.
+
+Also had to trim two more forbidden-keyword flakes in `test_recommendation_eval.py`
+(`sandals`/`flip-flops` legitimately suggested as secondary camp shoes twice
+across the cold and mid-range-rainy cases) — reinforces that keyword-forbidden
+lists should stick to genuinely unambiguous terms (e.g. `swimsuit` in a
+snowstorm) and defer the "reasonable secondary mention" judgment calls to
+`test_judge_eval.py`.
+
+---
+
 ### 2026-07-02 — Phase 2 drops `tempus-vestis` VPC egress entirely; auth service moved to public IAM-gated ingress (supersedes the PORT-24 `ALL_TRAFFIC` egress decision below)
 
 **Decision:** Removed the `vpc_access` block from `infra/cloud_run.tf`.

@@ -47,3 +47,8 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+markers = [
+    "eval: LLM eval that makes real OpenAI API calls (real cost, non-deterministic). Run explicitly with `pytest -m eval`.",
+]
+# Excluded from the default run since they cost real API calls; opt in with `pytest -m eval`.
+addopts = "-m 'not eval'"
